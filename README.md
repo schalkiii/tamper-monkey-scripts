@@ -9,7 +9,7 @@
 | [auto-verify.user.js](./auto-verify.user.js)                             | 通用验证码自动识别与填写                           | 1.0.0 |
 | [iyuu-reseed-checker.user.js](./iyuu-reseed-checker.user.js)             | PT 站种子详情页显示 IYUU 可辅种数                  | 1.3   |
 | [qbittorrent-reseed-tagger.user.js](./qbittorrent-reseed-tagger.user.js) | qBittorrent WebUI 根据辅种数自动打标签             | 0.5.0 |
-| [pt-cookie-cleaner.user.js](./pt-cookie-cleaner.user.js)                 | 移除 PT 站 Cookie 分号后空格，修复 IYUU 签到兼容性 | 1.0.0 |
+| [pt-cookie-cleaner.user.js](./pt-cookie-cleaner.user.js)                 | 移除 PT 站 Cookie 分号后空格，修复 IYUU 签到兼容性 | 2.0.0 |
 
 ---
 
@@ -119,11 +119,20 @@
 
 ### 功能
 
-移除 PT 站点 Cookie 中分号后的空格，将 Cookie 格式标准化为 IYUU 自动签到兼容的格式。
+劫持浏览器 `document.cookie` getter，任何脚本（包括 Cookie Cloud）读取 Cookie 时自动移除分号后的空格，解决 Cookie Cloud → MoviePilot 同步时 cookie 被截断的问题。
 
 ### 背景
 
-部分 PT 站点在 `Set-Cookie` 时，不同 Cookie 条目之间使用 `; `（分号+空格）分隔。IYUU 自动签到工具在解析这些 Cookie 时会因空格导致解析失败。此脚本在页面加载前清理 Cookie 格式。
+Cookie Cloud 插件将浏览器 Cookie 上传到 MoviePilot 时，`document.cookie` 标准输出格式为 `key1=val1; key2=val2`（分号后含空格）。MoviePilot 在解析此格式时可能因空格导致 cookie 值被截断，影响功能。
+
+### 实现原理（v2.0）
+
+通过 `Object.defineProperty` 重写 `document.cookie` 的 getter，在读出的 cookie 字符串上执行 `replace(/;\s+/g, ";")` 移除空格。
+
+**对比 v1.0 改进**：
+
+- v1.0：读取 cookie → 去空格 → 重写回浏览器（**破坏性**：丢失 `Secure`/`SameSite`/`expires` 等属性）
+- v2.0：劫持 getter 在读取时去空格（**非破坏性**：不修改 cookie 存储，保留所有原始属性）
 
 ### 安装
 
@@ -135,9 +144,9 @@
 
 ### 技术说明
 
-- 使用 `@run-at document-start` 确保在页面 JS 执行前完成清理
-- 使用 `@grant none`（直接操作 `document.cookie`，无需特权 API）
-- 保留 Cookie 值中的等号（使用 `indexOf` 而非 `split('=')`）
+- 使用 `@run-at document-start` 确保在页面 JS 及扩展读取 cookie 前完成劫持
+- 不修改 cookie 存储，不丢失任何 cookie 属性
+- HttpOnly cookie 的可见性受浏览器安全策略限制，无法通过用户脚本绕过
 
 ---
 
