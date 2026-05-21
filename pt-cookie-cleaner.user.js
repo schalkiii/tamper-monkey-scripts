@@ -1,11 +1,12 @@
 // ==UserScript==
-// @name         PT 站点 Cookie 空格清理
+// @name         移除特定站点 Cookie 空格
 // @namespace    https://github.com/schalkiii/tamper-monkey-scripts
-// @version      2.0.0
-// @description  劫持 document.cookie getter，自动移除 Cookie 分号后的空格，修复 Cookie Cloud → MoviePilot 同步截断问题
+// @version      1.0.0
+// @description  移除 PT 站点 Cookie 中分号后的空格，修复 IYUU 自动签到兼容性问题
 // @author       Schalkiii
 // @license      MIT
 // @run-at       document-start
+// @match        https://pt.upxin.net/*
 // @match        https://ubits.club/*
 // @match        https://www.agsvpt.com/*
 // @match        https://www.yemapt.org/*
@@ -74,20 +75,19 @@
 (function () {
   "use strict";
 
-  var prop = Object.getOwnPropertyDescriptor(Document.prototype, "cookie");
+  var cookieStr = document.cookie;
+  var cleanedCookieStr = cookieStr.replace(/;\s+/g, ";");
 
-  Object.defineProperty(document, "cookie", {
-    get: function () {
-      return prop.get.call(document).replace(/;\s+/g, ";");
-    },
-    set: function (value) {
-      prop.set.call(document, value);
-    },
-    configurable: true,
-    enumerable: true,
+  console.log("[CookieClean] 原始 cookie:", cookieStr);
+  console.log("[CookieClean] 清理后 cookie:", cleanedCookieStr);
+
+  cleanedCookieStr.split(";").forEach(function (entry) {
+    var eqIdx = entry.indexOf("=");
+    if (eqIdx === -1) return;
+    var name = entry.substring(0, eqIdx).trim();
+    var value = entry.substring(eqIdx + 1).trim();
+    if (name && value) {
+      document.cookie = name + "=" + value + "; path=/;";
+    }
   });
-
-  console.log(
-    "[CookieClean] document.cookie getter 已劫持，分号后空格将自动移除",
-  );
 })();
