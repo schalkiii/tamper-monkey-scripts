@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         IYUU 可辅种数查看助手
 // @namespace    http://tampermonkey.net/
-// @version      1.3
-// @description  自动从 PT 站种子详情页提取 Hash 码并查询 IYUU 可辅种总数
+// @version      1.4
+// @description  自动从 PT 站种子详情页提取 Hash 码并查询 IYUU 可辅种总数，支持多种 NexusPHP Hash 格式
 // @author       Schalkiii
 // @license      MIT
 // @match        http*://*/details*.php*
@@ -15,16 +15,43 @@
 (function () {
   "use strict";
 
-  var hashRegex = /<b>Hash[码碼]:<\/b>&nbsp;([a-f0-9]{40})/i;
-  var bodyText = document.body.innerHTML;
-  var hashMatch = hashRegex.exec(bodyText);
+  function extractInfoHash() {
+    var bodyText = document.body.innerHTML;
 
-  if (!hashMatch || !hashMatch[1]) {
-    console.log("[IYUU] 未找到 Hash 码");
+    var patterns = [
+      /<b>Hash[码碼]:<\/b>&nbsp;([a-f0-9]{40})/i,
+      /Hash[码碼]:?\s*(?:&nbsp;)?\s*([a-f0-9]{40})/i,
+      /Info\s*Hash:?\s*(?:&nbsp;)?\s*([a-f0-9]{40})/i,
+    ];
+
+    for (var i = 0; i < patterns.length; i++) {
+      var match = patterns[i].exec(bodyText);
+      if (match && match[1]) {
+        return match[1];
+      }
+    }
+
+    var downloadLinks = document.querySelectorAll(
+      'a[href*="download.php"], a[href*="download"], a[href*="dl.php"]',
+    );
+    for (var j = 0; j < downloadLinks.length; j++) {
+      var href = downloadLinks[j].getAttribute("href");
+      var dlMatch = /[?&](?:hash|info_hash)=([a-f0-9]{40})/i.exec(href);
+      if (dlMatch && dlMatch[1]) {
+        return dlMatch[1];
+      }
+    }
+
+    return null;
+  }
+
+  var infoHash = extractInfoHash();
+
+  if (!infoHash) {
+    console.log("[IYUU] 未找到 Hash 码，跳过页面修改");
     return;
   }
 
-  var infoHash = hashMatch[1];
   console.log("[IYUU] 已找到 Hash 码：" + infoHash);
 
   var apiUrl =

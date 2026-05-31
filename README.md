@@ -7,7 +7,7 @@
 | 脚本                                                                     | 用途                                               | 版本  |
 | ------------------------------------------------------------------------ | -------------------------------------------------- | ----- |
 | [auto-verify.user.js](./auto-verify.user.js)                             | 通用验证码自动识别与填写                           | 1.0.0 |
-| [iyuu-reseed-checker.user.js](./iyuu-reseed-checker.user.js)             | PT 站种子详情页显示 IYUU 可辅种数                  | 1.3   |
+| [iyuu-reseed-checker.user.js](./iyuu-reseed-checker.user.js)             | PT 站种子详情页显示 IYUU 可辅种数                  | 1.4   |
 | [qbittorrent-reseed-tagger.user.js](./qbittorrent-reseed-tagger.user.js) | qBittorrent WebUI 根据辅种数自动打标签             | 0.5.0 |
 | [pt-cookie-cleaner.user.js](./pt-cookie-cleaner.user.js)                 | 移除 PT 站 Cookie 分号后空格，修复 IYUU 签到兼容性 | 2.0.0 |
 
@@ -54,10 +54,12 @@
 
 ### 特性
 
-- 自动从页面提取 Info Hash（40 位十六进制）
+- 多策略 Hash 提取：支持 `<b>Hash码:</b>`、`Hash码:`、`Info Hash:` 等多种 NexusPHP 页面格式
+- 自动从下载链接中提取 Hash（`download.php?hash=xxx` / `download.php?info_hash=xxx`）
 - 调用 [IYUU API](http://api.iyuu.cn) 查询辅种数据
 - 在「下载种子」行末尾展示结果（如 `可辅种数: 5`）
 - 支持简体/繁体中文 PT 站点（自动适配「下载种子」/「下載種子」）
+- 种子页面无法提取 Hash 时自动跳过，不修改页面显示
 
 ### 安装
 
