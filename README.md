@@ -6,7 +6,7 @@
 
 | 脚本                                                                     | 用途                                               | 版本  |
 | ------------------------------------------------------------------------ | -------------------------------------------------- | ----- |
-| [auto-verify.user.js](./auto-verify.user.js)                             | 通用验证码自动识别与填写                           | 1.0.0 |
+| [auto-verify.user.js](./auto-verify.user.js)                             | 通用验证码自动识别与填写                           | 1.0.1 |
 | [iyuu-reseed-checker.user.js](./iyuu-reseed-checker.user.js)             | PT 站种子详情页显示 IYUU 可辅种数                  | 1.4   |
 | [qbittorrent-reseed-tagger.user.js](./qbittorrent-reseed-tagger.user.js) | qBittorrent WebUI 根据辅种数自动打标签             | 0.5.0 |
 | [pt-cookie-cleaner.user.js](./pt-cookie-cleaner.user.js)                 | 移除 PT 站 Cookie 分号后空格，修复 IYUU 签到兼容性 | 2.0.0 |

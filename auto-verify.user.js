@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AutoVerify - 验证码自动识别
 // @namespace    auto-verify
-// @version      1.0.0
+// @version      1.0.1
 // @description  自动识别页面上的验证码图片并填入输入框，支持中英文及多语言关键词
 // @author       AutoVerify
 // @match        *://*/*
@@ -9,6 +9,7 @@
 // @grant        GM_setValue
 // @grant        GM_deleteValue
 // @grant        GM_xmlhttpRequest
+// @connect      api.ocr.space
 // @run-at       document-idle
 // ==/UserScript==
 
@@ -189,10 +190,28 @@
 
   function runOcr(base64Data) {
     return new Promise(function (resolve, reject) {
+      var done = false;
+      var safetyTimer = setTimeout(function () {
+        if (!done) {
+          done = true;
+          reject(new Error("OCR API 请求超时（15s）"));
+        }
+      }, 15000);
+
+      function finish(err, result) {
+        if (done) return;
+        done = true;
+        clearTimeout(safetyTimer);
+        if (err) reject(err);
+        else resolve(result);
+      }
+
       var payload =
         "base64Image=" +
         encodeURIComponent(base64Data) +
         "&language=eng&isOverlayRequired=false";
+
+      console.log("[AutoVerify] 正在发送 OCR 请求...");
 
       GM_xmlhttpRequest({
         method: "POST",
@@ -213,9 +232,9 @@
             ) {
               var text = result.ParsedResults[0].ParsedText;
               text = text.replace(/\s/g, "").trim();
-              resolve(text);
+              finish(null, text);
             } else {
-              reject(
+              finish(
                 new Error(
                   "OCR API 错误: " +
                     (result.ErrorMessage || "ExitCode=" + result.OCRExitCode),
@@ -223,14 +242,14 @@
               );
             }
           } catch (e) {
-            reject(e);
+            finish(e);
           }
         },
         onerror: function () {
-          reject(new Error("OCR API 网络请求失败"));
+          finish(new Error("OCR API 网络请求失败"));
         },
         ontimeout: function () {
-          reject(new Error("OCR API 请求超时（15s）"));
+          finish(new Error("OCR API 请求超时（15s）"));
         },
       });
     });
@@ -260,7 +279,11 @@
     try {
       callback(canvas.toDataURL());
     } catch (e) {
-      /* cross-origin images will throw */
+      console.warn(
+        "[AutoVerify] 图片跨域，无法转换为 Base64:",
+        imgElement.src.substring(0, 100),
+      );
+      callback(null);
     }
   }
 
