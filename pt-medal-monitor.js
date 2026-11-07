@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         PT Medal Monitor
 // @namespace    http://tampermonkey.net/
-// @version      2026-11-07e
+// @version      2026-11-07f
 // @description  监控所有站点的勋章状况，并按站点时魔判断勋章加成 24 小时做种能否回本
 // @author       Schalkiii
 // @match        http*://*/medal*.php*
@@ -18,6 +18,12 @@
 // @updateURL https://update.greasyfork.org/scripts/521928/PT%20Medal%20Monitor.meta.js
 // ==/UserScript==
 
+// Changelog  2026-11-07f（站点表复核收尾）:
+// - YHPP（yhpp.cc）的 medal.php 返回 301 且 Location 指向自身，构成无限重定向；
+//   用户确认停运，移出抓取列表并记入 offlineUrls
+// - HITPT 从「medal.php 404」名单撤出：复核发现该页是登录墙——
+//   匿名请求 302 到 login.php?returnto=medal.php，不是 404，恢复抓取
+//   最终：内置 103 条 / 实际抓取 74 站 / 停运名单 8 条
 // Changelog  2026-11-07e（停运站点清理）:
 // - ICC（icc2022.com）与象岛（ptvicomo.net）已停运：本机 TLS 握手被服务器直接中断
 //   （schannel: server closed abruptly），连首页都取不到响应。移出抓取列表与未支持跳转
@@ -195,7 +201,6 @@
         { name: '52Movie', url: 'https://www.52movie.top/medal.php' },
         { name: 'Luck', url: 'https://pt.luckpt.de/medal.php' },
         { name: 'NovaHD', url: 'https://pt.novahd.top/medal.php' },
-        { name: 'YHPP', url: 'https://www.yhpp.cc/medal.php' },
         { name: '天枢', url: 'https://dubhe.site/medal.php' },
         { name: '躺平', url: 'https://www.tangpt.top/medal.php' },
         { name: '自然', url: 'https://naturept.top/medal.php' },
@@ -239,6 +244,8 @@
         // 连首页都取不到任何响应；用户确认两站已停运
         { name: 'ICC', url: 'https://www.icc2022.com/medal.php' },
         { name: '象岛', url: 'https://ptvicomo.net/medal.php' },
+        // 2026-11-07 实测 medal.php 返回 301 且 Location 指向自身，无限重定向；用户确认停运
+        { name: 'YHPP', url: 'https://www.yhpp.cc/medal.php' },
     ];
 
     // medal.php 404 的站点（可能没有勋章功能）。统一按 url 字符串比对：
@@ -262,7 +269,6 @@
         'https://pt.hdpost.top/medal.php',
         'https://hdsky.me/medal.php',
         'https://pt.hdupt.com/medal.php',
-        'https://www.hitpt.com/medal.php',
         'https://hudbt.hust.edu.cn/medal.php',
         'https://www.haidan.video/medal.php',
         'https://club.hares.top/medal.php',
