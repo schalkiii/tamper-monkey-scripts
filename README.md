@@ -10,6 +10,7 @@
 | [iyuu-reseed-checker.user.js](./iyuu-reseed-checker.user.js) | PT 站种页显示 IYUU 可辅种数 | 1.4 |
 | [qbittorrent-reseed-tagger.user.js](./qbittorrent-reseed-tagger.user.js) | qBittorrent WebUI 根据辅种数自动打标签 | 0.5.0 |
 | [pt-cookie-cleaner.user.js](./pt-cookie-cleaner.user.js) | 移除 PT 站 Cookie 分号后空格，修复 IYUU 签到兼容性 | 2.0.0 |
+| [pt-medal-monitor.js](./pt-medal-monitor.js) | 跨站抓取可购买勋章，按站点时魔给出 24 小时回本结论 | 2026-11-07 |
 
 ---
 
@@ -224,3 +225,35 @@ Cookie Cloud 插件将浏览器 Cookie 上传到 MoviePilot 时，`document.cook
 ## 许可
 
 MIT License
+
+---
+
+## pt-medal-monitor.js — PT 勋章监控与时魔回本
+
+### 功能
+
+在任意 PT 站勋章页运行，点击「开始抓取勋章」后用 `GM_xmlhttpRequest` 批量抓取内置站点的全部勋章分页，标出真正可购买的勋章，并按各站「时魔」（每小时做种魔力值）判断勋章加成在 24 小时做种内能否赚回票价。
+
+### 特性
+
+- **时魔回本列**：额外抓取各站 `mybonus.php`（取不到再试 `mybonus_new.php`），乘数基数取「勋章加成」行的**基础魔力**而非总时魔——站点算勋章奖励时不含"低保"，用总时魔会把收益高估约 50%
+- **结论形式**：`✓ 24h 内回本`、`回本 466 天`、`无法回本`（负加成勋章），退回总时魔估算时标 `≈`
+- **按需抓取**：只有该站确实有可购买勋章时才多发一次时魔请求，空列表站点不请求
+- **表头驱动列定位**：按 `getColumnLayout()` 的 9 列 / 10 列步长解析，兼容多一列「勋章 ID」的站点；老版本写死 `td:nth-child(n)` 会整行串列
+- **可购买判定**：只认文本恰为 `购买`/`購買` 且未禁用的按钮，排除「已购买」「需要更多魔力值」「已过可购买时间」
+- **自动分页**：从分页条发现 `?page=N`（含省略号折叠页，逐页继续发现），上限 20 页
+- **未适配站点兜底**：表格解析不出时改为提示「疑似购买按钮」并给出跳转入口
+
+### 与时魔口径相关的已知限制
+
+- 部分站点（PTer 猫粮、CMCT 茉莉、TTG 积分、Audiences 爆米花等）的魔力值页面结构不同，取不到时魔时只显示勋章、不给回本结论
+- 好学（hxpt.org）的 `/medals` 是 Next.js 卡片布局，本脚本只认表格，会退化为按钮提示；其时魔「预计时收益」由前端填充，静态抓取拿不到
+- 时魔是当前做种状态的瞬时值：此刻未做种的站点报 0，据此判为无法回本
+
+### 安装
+
+在 TamperMonkey 中导入 `pt-medal-monitor.js`。脚本匹配 `*/medal*.php*`、`*/medals*`、`*/badge*.php*`、`*/buycenter.php*`，在任一 PT 站页面打开即会在右上角出现抓取按钮。
+
+### 同步来源
+
+解析口径（列名定位、低保剔除、简繁与币种兼容、负加成处理、按需抓取）与浏览器扩展 [medal-checker](https://github.com/schalkiii/medal-checker) 保持一致，并已在真实站点页面上逐字段交叉验证。
