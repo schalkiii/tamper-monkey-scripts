@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         PT Medal Monitor
 // @namespace    http://tampermonkey.net/
-// @version      2026-11-07d
+// @version      2026-11-07e
 // @description  监控所有站点的勋章状况，并按站点时魔判断勋章加成 24 小时做种能否回本
 // @author       Schalkiii
 // @match        http*://*/medal*.php*
@@ -18,6 +18,10 @@
 // @updateURL https://update.greasyfork.org/scripts/521928/PT%20Medal%20Monitor.meta.js
 // ==/UserScript==
 
+// Changelog  2026-11-07e（停运站点清理）:
+// - ICC（icc2022.com）与象岛（ptvicomo.net）已停运：本机 TLS 握手被服务器直接中断
+//   （schannel: server closed abruptly），连首页都取不到响应。移出抓取列表与未支持跳转
+//   列表，记入 offlineUrls；扩展同步从 DEFAULT_SITES 移除（内置 69 → 68）
 // Changelog  2026-11-07d（卡片解析与扩展对齐）:
 // - 卡片字段补「销售截止」：好学 /medals 只给截止日期不给区间，旧版这条标签被直接丢弃，
 //   「可购买时间」一列空白；现在补成「不限 ~ 2027/10/4」，与扩展 extractMedalsFromHxptCards 一致
@@ -138,7 +142,6 @@
         { name: 'TTG', url: 'https://totheglory.im/mall.php?cid=5' },
         { name: 'WT-Sakura', url: 'https://wintersakura.net/medal.php' },
         { name: 'Monika', url: 'https://monikadesign.uk/medal.php' },
-        { name: 'ICC', url: 'https://www.icc2022.com/medal.php' },
         { name: 'CyanBug', url: 'https://cyanbug.net/medal.php' },
         { name: '海棠', url: 'https://www.htpt.cc/buycenter.php' },
         { name: '杏林', url: 'https://xingtan.one/medal.php' },
@@ -202,7 +205,6 @@
         { name: '财神', url: 'https://cspt.top/medal.php' },
         { name: 'PTer', url: 'https://pterclub.net/medal.php' },
         { name: 'ZMPT', url: 'https://zmpt.cc/medal.php' },
-        { name: '象岛', url: 'https://ptvicomo.net/medal.php' },
         { name: '麒麟', url: 'https://www.hdkyl.in/medal.php' },
         { name: 'Piggo', url: 'https://piggo.me/medal.php' },
         { name: 'QingWa', url: 'https://qingwapt.com/medal.php' },
@@ -218,7 +220,6 @@
         { name: '财神', url: 'https://cspt.top/medal.php' },
         { name: 'PTer', url: 'https://pterclub.net/medal.php' },
         { name: 'ZMPT', url: 'https://zmpt.cc/medal.php' },
-        { name: '象岛', url: 'https://ptvicomo.net/medal.php' },
         { name: '麒麟', url: 'https://www.hdkyl.in/medal.php' },
         { name: 'Piggo', url: 'https://piggo.me/medal.php' },
         { name: 'QingWa', url: 'https://qingwapt.com/medal.php' },
@@ -234,6 +235,10 @@
         { name: '回声PT', url: 'https://hspt.club/medal.php' },
         // 2026-11-07 实测 hdpt.xyz 已是域名停放待售页（abovedomains），HTTP 仍回 200
         { name: 'HDPt', url: 'https://hdpt.xyz/medal.php' },
+        // 2026-11-07 实测 TLS 握手被服务器中断（schannel: server closed abruptly），
+        // 连首页都取不到任何响应；用户确认两站已停运
+        { name: 'ICC', url: 'https://www.icc2022.com/medal.php' },
+        { name: '象岛', url: 'https://ptvicomo.net/medal.php' },
     ];
 
     // medal.php 404 的站点（可能没有勋章功能）。统一按 url 字符串比对：
