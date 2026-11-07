@@ -10,7 +10,7 @@
 | [iyuu-reseed-checker.user.js](./iyuu-reseed-checker.user.js) | PT 站种页显示 IYUU 可辅种数 | 1.4 |
 | [qbittorrent-reseed-tagger.user.js](./qbittorrent-reseed-tagger.user.js) | qBittorrent WebUI 根据辅种数自动打标签 | 0.5.0 |
 | [pt-cookie-cleaner.user.js](./pt-cookie-cleaner.user.js) | 移除 PT 站 Cookie 分号后空格，修复 IYUU 签到兼容性 | 2.0.0 |
-| [pt-medal-monitor.js](./pt-medal-monitor.js) | 跨站抓取可购买勋章（表格/卡片/buycenter），按站点时魔给出 24 小时回本结论与买不起标注 | 2026-11-07c |
+| [pt-medal-monitor.js](./pt-medal-monitor.js) | 跨站抓取可购买勋章（表格/卡片/buycenter），按站点时魔给出 24 小时回本结论与买不起标注 | 2026-11-07d |
 
 ---
 
@@ -242,11 +242,13 @@ MIT License
 - **表头驱动列定位**：按 `getColumnLayout()` 的 9 列 / 10 列步长解析，兼容多一列「勋章 ID」的站点；老版本写死 `td:nth-child(n)` 会整行串列
 - **可购买判定**：只认文本恰为 `购买`/`購買` 且未禁用的按钮，排除「已购买」「需要更多魔力值」「已过可购买时间」
 - **自动分页**：从分页条发现 `?page=N`（含省略号折叠页，逐页继续发现），上限 20 页
-- **多套布局**：标准表格（9/10 列步长）之外，还解析各站自定义卡片（`medal-card`/`mcard`/`nova-medal-card`/`medal-item`，字段来自 `li>span+b`、`dt+dd`、`label+value`、`stat-item`、嵌套明细表五套结构），以及海棠 `buycenter.php`（操作列是「交换」，列序为 图标|简介|库存|单日限购|价格|交换）
+- **多套布局**（口径与扩展逐字段对齐，用扩展单测同款好学/cspt 夹具验证）：标准表格（9/10 列步长）之外，还解析各站自定义卡片（`medal-card`/`mcard`/`nova-medal-card`/`medal-item`，字段来自 `li>span+b`、`dt+dd`、`label+value`、`stat-item`、嵌套明细表五套结构），以及海棠 `buycenter.php`（操作列是「交换」，列序为 图标|简介|库存|单日限购|价格|交换）
 - **余额与买不起**：从勋章页表头取余额，币种改名站（猫粮/贝利/杏仁/爆米花/蝌蚪/茉莉/憨豆/幸运星/电力/积分）一并识别，支持 `954.1K` 千分缩写；买不起的行标红并单列「买得起」
 - **未适配站点兜底**：仍解析不出时改为提示「疑似购买按钮」并给出跳转入口
 - **站点表与扩展对齐**：内置 106 条、实际抓取 76 站；抓取列表 = 全部 − 无勋章页 − 已停站
   （`offlineUrls` 早期只声明未参与过滤，停站每轮各白跑一次请求，现已接入）
+- **卡片字段**：`销售截止` 这类只有截止日期的写法补成 `不限 ~ 2027/10/4`；已有 `可购买时间`
+  区间时不顶掉它。「非卖品」「免费」与扩展一致返回无结论，不当成 0 元（否则白标 `✓ 24h 内回本`）
 
 ### 与时魔口径相关的已知限制
 

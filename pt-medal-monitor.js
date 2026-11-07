@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         PT Medal Monitor
 // @namespace    http://tampermonkey.net/
-// @version      2026-11-07c
+// @version      2026-11-07d
 // @description  监控所有站点的勋章状况，并按站点时魔判断勋章加成 24 小时做种能否回本
 // @author       Schalkiii
 // @match        http*://*/medal*.php*
@@ -18,6 +18,12 @@
 // @updateURL https://update.greasyfork.org/scripts/521928/PT%20Medal%20Monitor.meta.js
 // ==/UserScript==
 
+// Changelog  2026-11-07d（卡片解析与扩展对齐）:
+// - 卡片字段补「销售截止」：好学 /medals 只给截止日期不给区间，旧版这条标签被直接丢弃，
+//   「可购买时间」一列空白；现在补成「不限 ~ 2027/10/4」，与扩展 extractMedalsFromHxptCards 一致
+// - 「免费」「非卖品」价格不再当成 0 元：与扩展 parsePriceNumber 同口径返回 null（不给回本结论）。
+//   旧逻辑会给这类勋章打上「✓ 24h 内回本」，真 0 价写作「0 魔力」仍能正常解析
+// - 修正好学站点条目上「本脚本的表格解析拿不到」的过期注释（卡片解析 07b 已支持）
 // Changelog  2026-11-07c（站点表与扩展对齐）:
 // - 停站与无勋章页重新逐个核正文：hdpt.xyz 已停放待售、greatposterwall/ptchina/ptlover
 //   的 medal.php 是 404（前两家 HTTP 仍回 200，只看状态码判不出来），移出抓取列表
@@ -173,8 +179,8 @@
         { name: 'aling', url: 'https://pt.aling.de/medal.php' },
         { name: 'March', url: 'https://duckboobee.org/medal.php' },
         // 好学改版：/medal.php 与 /mybonus.php 均已 404，勋章图鉴在 /medals。
-        // 该站是卡片布局（article.mcard + ul.spec），本脚本的表格解析拿不到，
-        // 会退化为「疑似购买按钮」提示；时魔改由 /my-spark 提供（需前端渲染，抓不到）
+        // 该站是卡片布局（article.mcard + ul.spec），走通用卡片解析；只有时魔拿不到——
+        // 它的时魔在 /my-spark 且需前端渲染，GM_xmlhttpRequest 只能取到空壳
         { name: '好学', url: 'https://www.hxpt.org/medals', bonusPaths: [] },
         // 与扩展 DEFAULT_SITES 对齐补入：三家都是标准 medal.php 表格站
         { name: 'D-Studio', url: 'https://dstudio.me/medal.php' },
@@ -679,10 +685,12 @@
         else if (/加成/.test(label)) fields.bonus = value;
         else if (/库存|庫存/.test(label)) fields.stock = value;
         else if (/可购买|可購買|销售时间|售賣|售卖/.test(label)) fields.timeRange = value;
+        // 好学 /medals 不给区间，只给「销售截止 2027/10/4」，单独留着后面补成区间
+        else if (/截止/.test(label)) fields.deadline = value;
     }
 
     function collectCardFields(card) {
-        const fields = { price: '', duration: '', bonus: '', stock: '', timeRange: '' };
+        const fields = { price: '', duration: '', bonus: '', stock: '', timeRange: '', deadline: '' };
         // <li><span>标签</span><b>值</b></li>（好学 spec 列表）
         card.querySelectorAll('li').forEach(li => {
             const label = li.querySelector('span');
@@ -749,6 +757,10 @@
             if (!name || name.length > 120) continue;
             const f = collectCardFields(card);
             if (!f.price && !f.bonus) continue;   // 认不出的容器不硬凑，交给按钮探测提示
+            // 「不限 ~ 不限」等于没有信息，此时用截止日期补成「不限 ~ 2027/10/4」，
+            // 与扩展 extractMedalsFromHxptCards 同口径（前端按 ~ 拆开头判断是否未来开售）
+            const openRange = f.timeRange && !/^不限 ?[~～] ?不限$/.test(f.timeRange);
+            const timeRange = openRange ? f.timeRange : (f.deadline ? '不限 ~ ' + f.deadline : f.timeRange);
             seen.add(card);
             const img = card.querySelector('img');
             medals.push({
@@ -756,7 +768,7 @@
                 image: img && img.getAttribute('src') ? new URL(img.getAttribute('src'), medalUrlOf(site)).href : '',
                 name: name,
                 description: '',
-                availableTime: f.timeRange,
+                availableTime: timeRange,
                 validity: f.duration,
                 bonusMultiplier: f.bonus,
                 price: parsePrice(f.price),
@@ -772,11 +784,11 @@
     // 价格解析：与扩展的 parsePriceNumber 同口径（剥掉除数字和小数点外的一切），
     // 好学的勋章价格写成「188,888 魔力」，用严格数字校验会判成解析失败，
     // 于是该站 62 枚勋章全部没有回本结论；但完全没有数字时仍必须返回 null，
-    // 返回 0 会让回本结论假报「✓ 24h 内回本」
+    // 返回 0 会让回本结论假报「✓ 24h 内回本」。「免费」「非卖品」也走这条：扩展的
+    // parsePriceNumber 对它们返回 null（不给结论），本脚本旧版判成 0 元、白标一个 ✓
     function parsePrice(text) {
         if (text === undefined || text === null || text === '') return null;
         const raw = String(text);
-        if (/免费|不消耗|无需|非卖品/.test(raw)) return 0;
         const digits = raw.replace(/[^\d.]/g, '');
         if (!digits || !/^\d+(?:\.\d+)?$/.test(digits)) return null;
         const num = parseFloat(digits);
