@@ -10,7 +10,7 @@
 | [iyuu-reseed-checker.user.js](./iyuu-reseed-checker.user.js) | PT 站种页显示 IYUU 可辅种数 | 1.4 |
 | [qbittorrent-reseed-tagger.user.js](./qbittorrent-reseed-tagger.user.js) | qBittorrent WebUI 根据辅种数自动打标签 | 0.5.0 |
 | [pt-cookie-cleaner.user.js](./pt-cookie-cleaner.user.js) | 移除 PT 站 Cookie 分号后空格，修复 IYUU 签到兼容性 | 2.0.0 |
-| [pt-medal-monitor.js](./pt-medal-monitor.js) | 跨站抓取可购买勋章（表格/卡片/buycenter），按站点时魔给出 24 小时回本结论与买不起标注 | 2026-11-07b |
+| [pt-medal-monitor.js](./pt-medal-monitor.js) | 跨站抓取可购买勋章（表格/卡片/buycenter），按站点时魔给出 24 小时回本结论与买不起标注 | 2026-11-07c |
 
 ---
 
@@ -245,12 +245,17 @@ MIT License
 - **多套布局**：标准表格（9/10 列步长）之外，还解析各站自定义卡片（`medal-card`/`mcard`/`nova-medal-card`/`medal-item`，字段来自 `li>span+b`、`dt+dd`、`label+value`、`stat-item`、嵌套明细表五套结构），以及海棠 `buycenter.php`（操作列是「交换」，列序为 图标|简介|库存|单日限购|价格|交换）
 - **余额与买不起**：从勋章页表头取余额，币种改名站（猫粮/贝利/杏仁/爆米花/蝌蚪/茉莉/憨豆/幸运星/电力/积分）一并识别，支持 `954.1K` 千分缩写；买不起的行标红并单列「买得起」
 - **未适配站点兜底**：仍解析不出时改为提示「疑似购买按钮」并给出跳转入口
+- **站点表与扩展对齐**：内置 106 条、实际抓取 76 站；抓取列表 = 全部 − 无勋章页 − 已停站
+  （`offlineUrls` 早期只声明未参与过滤，停站每轮各白跑一次请求，现已接入）
 
 ### 与时魔口径相关的已知限制
 
 - 部分站点（PTer 猫粮、CMCT 茉莉、TTG 积分、Audiences 爆米花等）的魔力值页面结构不同，取不到时魔时只显示勋章、不给回本结论
 - 好学（hxpt.org）`/medals` 的卡片勋章已支持（真实页面 62 枚），但它的时魔「预计时收益」由前端渲染后才出现在 DOM 里，`GM_xmlhttpRequest` 拿不到，因此好学只显示勋章、不显示回本结论；扩展版靠后台标签页渲染解决，油猴脚本不做这件事（需要开标签页，代价与脚本定位不符）
 - 时魔是当前做种状态的瞬时值：此刻未做种的站点报 0，据此判为无法回本
+- 站点存活不能只看 HTTP 状态码：2026-11-07 复核时 `hdpt.xyz` 已换成域名停放页、
+  `greatposterwall.com/medal.php` 返回站内「页面不存在」软错误，两者都回 200；
+  反过来 `wukongwendao.top` 因反爬 JS 挑战页被误判过停站。判定一律以正文特征为准
 - 解析口径与扩展逐字段比对：调试包 80 个站点首页共 106 枚可购买勋章，逐枚名称/加成/价格一致（仅海棠 2 枚名称本脚本会剥掉描述尾巴，比扩展更干净）
 
 ### 安装

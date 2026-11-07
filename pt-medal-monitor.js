@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         PT Medal Monitor
 // @namespace    http://tampermonkey.net/
-// @version      2026-11-07b
+// @version      2026-11-07c
 // @description  监控所有站点的勋章状况，并按站点时魔判断勋章加成 24 小时做种能否回本
 // @author       Schalkiii
 // @match        http*://*/medal*.php*
@@ -18,6 +18,17 @@
 // @updateURL https://update.greasyfork.org/scripts/521928/PT%20Medal%20Monitor.meta.js
 // ==/UserScript==
 
+// Changelog  2026-11-07c（站点表与扩展对齐）:
+// - 停站与无勋章页重新逐个核正文：hdpt.xyz 已停放待售、greatposterwall/ptchina/ptlover
+//   的 medal.php 是 404（前两家 HTTP 仍回 200，只看状态码判不出来），移出抓取列表
+// - offlineUrls 此前声明了却从未参与过滤，4 个停站每轮各白跑一次请求，现已接入 newSITES
+// - 补入扩展已收录、本脚本漏掉的站点：dstudio.me、www.musopia.vip、www.tokyo-manga.top、
+//   wukongwendao.top（悟空，上一版误判为停站，见上方勘误）
+// - 新增 SunnyPT（https://sunnypt.top/bounty?tab=renown）：SPA 站，bonusPaths 置空
+//   不发无谓的时魔请求，只给跳转入口
+// - YemaPT 勋章页与扩展统一为 #/user/growth?tab=badge（扩展实测的「我的成长-徽章」页）
+// - 全量复核两边合并的 112 个地址（其中实际参与抓取的 82 个二次核正文）：403/522/超时按既有口径
+//   一律保留，真正 ENOTFOUND 的 6 个域维持移除
 // Changelog  2026-11-07b:
 // - 新增卡片式布局提取（medal-card / mcard / nova-medal-card / medal-item / stat-item 与
 //   li-span+b、dt+dd、label+value、medal-detail-item 四套标签结构）：真实数据比对显示
@@ -30,9 +41,10 @@
 //   仍返回 null，绝不冒充 0 元（0 会让结论假报「✓ 24h 内回本」）
 // - 余额支持 K/M/B 千分缩写：「茉莉: 954.1K」丢掉后缀会把 95 万读成 954，
 //   于是整站勋章都被标成买不起
-// - 站点表按存活探测清理：joyhd / wukongwendao / ecust.pp.ua / sanpro.pw / a4apt /
-//   pt.541542 / nex.jivon 域名已不解析，移出抓取列表（403 与超时的站一律保留，
-//   那只是本探测不带 Cookie 被 Cloudflare 拦截，不代表站点死亡）
+// - 站点表按存活探测清理：joyhd / ecust.pp.ua / sanpro.pw / a4apt / pt.541542 /
+//   nex.jivon 域名已不解析（两次解析均 ENOTFOUND），移出抓取列表。
+//   403 与超时的站一律保留，那只是本探测不带 Cookie 被 Cloudflare 拦截，不代表站点死亡；
+//   wukongwendao 当初被连带误判，实测域名可解析、页面返回反爬 JS 挑战，2026-11-07c 加回
 // Changelog  2026-11-07（同步 PT 勋章扫描器扩展的实测经验）:
 // - 新增时魔与回本列：抓各站 mybonus.php（解析不到再试 mybonus_new.php），乘数基数取
 //   「勋章加成」行的「基础魔力」而不是总时魔——站点算勋章奖励时不含"低保"，carpt 实测
@@ -164,6 +176,13 @@
         // 该站是卡片布局（article.mcard + ul.spec），本脚本的表格解析拿不到，
         // 会退化为「疑似购买按钮」提示；时魔改由 /my-spark 提供（需前端渲染，抓不到）
         { name: '好学', url: 'https://www.hxpt.org/medals', bonusPaths: [] },
+        // 与扩展 DEFAULT_SITES 对齐补入：三家都是标准 medal.php 表格站
+        { name: 'D-Studio', url: 'https://dstudio.me/medal.php' },
+        { name: 'Musopia', url: 'https://www.musopia.vip/medal.php' },
+        { name: 'TokyoManga', url: 'https://www.tokyo-manga.top/medal.php' },
+        { name: '悟空', url: 'https://wukongwendao.top/medal.php' },
+        // SunnyPT 的勋章在 Next.js SPA 里，匿名抓取只有登录空壳，归入未支持跳转列表
+        { name: 'SunnyPT', url: 'https://sunnypt.top/bounty?tab=renown', bonusPaths: [] },
         { name: '52Movie', url: 'https://www.52movie.top/medal.php' },
         { name: 'Luck', url: 'https://pt.luckpt.de/medal.php' },
         { name: 'NovaHD', url: 'https://pt.novahd.top/medal.php' },
@@ -182,13 +201,14 @@
         { name: 'Piggo', url: 'https://piggo.me/medal.php' },
         { name: 'QingWa', url: 'https://qingwapt.com/medal.php' },
         { name: 'AGSV', url: 'https://pt.agsvpt.cn/medal.php' },
-        { name: 'YemaPT', url: 'https://www.yemapt.org/#/consumer/badge' },
+        { name: 'YemaPT', url: 'https://www.yemapt.org/#/user/growth?tab=badge' },
         { name: 'HHClub', url: 'https://hhanclub.net/medal.php' },
     ];
 
     // 表格布局未适配的站点：给出跳转入口，避免被误当成「没有勋章」
     const usupportUrls = [
         { name: '好学', url: 'https://www.hxpt.org/medals' },
+        { name: 'SunnyPT', url: 'https://sunnypt.top/bounty?tab=renown' },
         { name: '财神', url: 'https://cspt.top/medal.php' },
         { name: 'PTer', url: 'https://pterclub.net/medal.php' },
         { name: 'ZMPT', url: 'https://zmpt.cc/medal.php' },
@@ -197,7 +217,7 @@
         { name: 'Piggo', url: 'https://piggo.me/medal.php' },
         { name: 'QingWa', url: 'https://qingwapt.com/medal.php' },
         { name: 'AGSV', url: 'https://pt.agsvpt.cn/medal.php' },
-        { name: 'YemaPT', url: 'https://www.yemapt.org/#/consumer/badge' },
+        { name: 'YemaPT', url: 'https://www.yemapt.org/#/user/growth?tab=badge' },
         { name: 'HHClub', url: 'https://hhanclub.net/medal.php' },
     ];
 
@@ -206,6 +226,8 @@
         { name: 'DaJiao', url: 'https://dajiao.cyou/medal.php' },
         { name: 'HaresClub', url: 'https://club.hares.top/medal.php' },
         { name: '回声PT', url: 'https://hspt.club/medal.php' },
+        // 2026-11-07 实测 hdpt.xyz 已是域名停放待售页（abovedomains），HTTP 仍回 200
+        { name: 'HDPt', url: 'https://hdpt.xyz/medal.php' },
     ];
 
     // medal.php 404 的站点（可能没有勋章功能）。统一按 url 字符串比对：
@@ -248,10 +270,16 @@
         'https://www.tjupt.org/medal.php',
         'https://byr.pt/medal.php',
         'https://resource.xidian.edu.cn/medal.php',
+        // 2026-11-07 实测：站点在、勋章页已 404（GPW 是站内「页面不存在」软 404，状态码仍是 200）
+        'https://greatposterwall.com/medal.php',
+        'https://ptchina.org/medal.php',
+        'https://www.ptlover.cc/medal.php',
     ];
 
     const medalUrlOf = (site) => site.medalUrl || site.url;
-    const newSITES = SITES.filter(site => !noneMedalUrls.includes(medalUrlOf(site)));
+    // 抓取列表 = SITES − 无勋章页 − 已停站。老版本 offlineUrls 声明了却从未参与过滤
+    const newSITES = SITES.filter(site => !noneMedalUrls.includes(medalUrlOf(site))
+        && !offlineUrls.some(s => s.url === medalUrlOf(site)));
 
     // ===== 时魔（每小时做种魔力值）与回本 =====
 
