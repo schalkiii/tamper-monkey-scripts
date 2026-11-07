@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         PT Medal Monitor
 // @namespace    http://tampermonkey.net/
-// @version      2026-11-07
+// @version      2026-11-07b
 // @description  监控所有站点的勋章状况，并按站点时魔判断勋章加成 24 小时做种能否回本
 // @author       Schalkiii
 // @match        http*://*/medal*.php*
@@ -18,6 +18,21 @@
 // @updateURL https://update.greasyfork.org/scripts/521928/PT%20Medal%20Monitor.meta.js
 // ==/UserScript==
 
+// Changelog  2026-11-07b:
+// - 新增卡片式布局提取（medal-card / mcard / nova-medal-card / medal-item / stat-item 与
+//   li-span+b、dt+dd、label+value、medal-detail-item 四套标签结构）：真实数据比对显示
+//   只认表格时 80 个站点首页共抓到 16 枚，加上卡片口径后可到 106 枚（好学一家就 62 枚）
+// - 新增海棠 buycenter.php 布局（操作列文本是「交换」不是「购买」，列序也与 medal.php 不同）
+// - 新增余额提取与「买得起」列（复用已抓到的勋章页 HTML，不额外请求）：币种关键字补齐猫粮/贝利/杏仁/爆米花/蝌蚪/茉莉/憨豆/
+//   幸运星/电力/积分等改名站（标准关键字实测只覆盖 44/80）；买不起的行标红底
+// - 价格解析用宽松口径（剥掉币种后缀）：好学的价格写成「188,888 魔力」，
+//   严格校验会判成解析失败，导致该站 62 枚勋章没有回本结论；但完全没有数字时
+//   仍返回 null，绝不冒充 0 元（0 会让结论假报「✓ 24h 内回本」）
+// - 余额支持 K/M/B 千分缩写：「茉莉: 954.1K」丢掉后缀会把 95 万读成 954，
+//   于是整站勋章都被标成买不起
+// - 站点表按存活探测清理：joyhd / wukongwendao / ecust.pp.ua / sanpro.pw / a4apt /
+//   pt.541542 / nex.jivon 域名已不解析，移出抓取列表（403 与超时的站一律保留，
+//   那只是本探测不带 Cookie 被 Cloudflare 拦截，不代表站点死亡）
 // Changelog  2026-11-07（同步 PT 勋章扫描器扩展的实测经验）:
 // - 新增时魔与回本列：抓各站 mybonus.php（解析不到再试 mybonus_new.php），乘数基数取
 //   「勋章加成」行的「基础魔力」而不是总时魔——站点算勋章奖励时不含"低保"，carpt 实测
@@ -93,7 +108,6 @@
         { name: 'HUDBT', url: 'https://hudbt.hust.edu.cn/medal.php' },
         { name: 'HaiDan', url: 'https://www.haidan.video/medal.php' },
         { name: 'ITZMX', url: 'https://pt.itzmx.com/medal.php' },
-        { name: 'JoyHD', url: 'https://www.joyhd.net/medal.php' },
         { name: 'NanYang', url: 'https://nanyangpt.com/medal.php' },
         { name: 'Oshen', url: 'http://www.oshen.win/medal.php' },
         { name: 'OurBits', url: 'https://ourbits.club/medal.php' },
@@ -116,11 +130,9 @@
         { name: 'Panda', url: 'https://pandapt.net/medal.php' },
         { name: 'KuFei', url: 'https://kufei.org/medal.php' },
         { name: 'RouSi', url: 'https://rousi.pro/medal.php' },
-        { name: '悟空', url: 'https://wukongwendao.top/medal.php' },
         { name: 'PTCafe', url: 'https://ptcafe.club/medal.php' },
         { name: 'PTChina', url: 'https://ptchina.org/medal.php' },
         { name: 'GTK', url: 'https://pt.gtk.pw/medal.php' },
-        { name: 'ECUST', url: 'https://pt.ecust.pp.ua/medal.php' },
         { name: 'iloli', url: 'https://share.ilolicon.com/medal.php' },
         { name: 'CrabPt', url: 'https://crabpt.vip/medal.php' },
         { name: 'PTFans', url: 'https://ptfans.cc/medal.php' },
@@ -132,7 +144,6 @@
         { name: 'U2', url: 'https://u2.dmhy.org/medal.php' },
         { name: 'Ubits', url: 'https://ubits.club/medal.php' },
         { name: 'KamePT', url: 'https://kamept.com/medal.php' },
-        { name: '伞', url: 'https://sanpro.pw/medal.php' },
         { name: 'DevTracker', url: 'https://tracker.ldo.pics/medal.php' },
         { name: '唐门', url: 'https://tmpt.top/medal.php' },
         { name: 'HDBao', url: 'https://hdbao.cc/medal.php' },
@@ -140,8 +151,6 @@
         { name: 'LemonHDNet', url: 'https://lemonhd.net/medal.php' },
         { name: 'Sewer', url: 'https://sewerpt.com/medal.php' },
         { name: 'RailGun', url: 'https://bilibili.download/medal.php' },
-        { name: 'A4A', url: 'https://a4apt.com/medal.php' },
-        { name: '葫芦娃', url: 'https://pt.541542.xyz/medal.php' },
         { name: 'Playlet', url: 'https://playlet.cc/medal.php' },
         { name: 'PTSKIT', url: 'https://www.ptskit.com/medal.php' },
         { name: 'MyPT', url: 'https://cc.mypt.cc/medal.php' },
@@ -155,7 +164,6 @@
         // 该站是卡片布局（article.mcard + ul.spec），本脚本的表格解析拿不到，
         // 会退化为「疑似购买按钮」提示；时魔改由 /my-spark 提供（需前端渲染，抓不到）
         { name: '好学', url: 'https://www.hxpt.org/medals', bonusPaths: [] },
-        { name: '未来幻境', url: 'https://nex.jivon.de/medal.php' },
         { name: '52Movie', url: 'https://www.52movie.top/medal.php' },
         { name: 'Luck', url: 'https://pt.luckpt.de/medal.php' },
         { name: 'NovaHD', url: 'https://pt.novahd.top/medal.php' },
@@ -333,6 +341,7 @@
     function computePayback(medal, hourly, windowHours) {
         if (!hourly) return null;
         const coef = parseBonusCoef(medal.bonusMultiplier);
+        // 价格解析不出来（含「非卖品」）就判不可计算，不能当成 0 元
         const price = typeof medal.price === 'number' ? medal.price : parseNumber(medal.price);
         if (coef === null || price === null) return null;
 
@@ -432,6 +441,12 @@
     // 单站：勋章页全部分页 →（确有可购买勋章时）时魔页 → 逐条附加回本结论
     async function scrapeSite(site) {
         const medals = await scrapeMedalPages(site);
+        if (site.balance !== null && site.balance !== undefined) {
+            // 价格不明时不猜：留空，既不标买得起也不标买不起
+            medals.forEach(medal => {
+                medal.affordable = typeof medal.price === 'number' ? medal.price <= site.balance : null;
+            });
+        }
         site.hourly = medals.some(medal => medal.canBuy) ? await scrapeHourlyMagic(site) : null;
         if (site.hourly) {
             medals.forEach(medal => {
@@ -441,7 +456,18 @@
         return medals;
     }
 
+    // 与扩展 extractMedalsFromHtml 的分派思路一致：先标准表格，再通用卡片，
+    // buycenter.php 是另一套列序所以单独判定
+    function extractMedalsFromPage(doc, site) {
+        const tableMedals = extractMedalsFromDoc(doc, site);
+        if (tableMedals.length > 0) return tableMedals;
+        return medalUrlOf(site).includes('buycenter.php')
+            ? extractMedalsFromBuyCenter(doc, site)
+            : extractMedalsFromCards(doc, site);
+    }
+
     async function scrapeMedalPages(site) {
+        site.balance = null;
         const medals = [];
         const seen = new Set();
         const fetched = new Set();
@@ -471,7 +497,10 @@
 
             const doc = parseHtml(response.responseText);
             lastDoc = doc;
-            for (const medal of extractMedalsFromDoc(doc, site)) {
+            // 余额就在勋章页表头，复用同一份 HTML：取不到就完全不标注，
+            // 绝不用「未知」冒充「买不起」
+            if (pages === 1) site.balance = extractBalance(doc);
+            for (const medal of extractMedalsFromPage(doc, site)) {
                 // 1 索引站点的首页常常同时被链成 ?page=1：按名称+价格去重
                 const key = medal.name + '@' + medal.price;
                 if (seen.has(key)) continue;
@@ -561,7 +590,9 @@
                         availableTime: pick(layout.timeIdx),
                         validity: pick(layout.durationIdx),
                         bonusMultiplier: pick(layout.bonusIdx),
-                        price: parseNumber(pick(layout.priceIdx)) || 0,
+                        // 解析不出数字就留 null：冒充 0 元会让回本假报「✓ 24h 内回本」
+                        price: parseNumber(pick(layout.priceIdx)),
+                        priceRaw: pick(layout.priceIdx),
                         stock: pick(layout.stockIdx),
                         canBuy: true,
                         giftFee: (actionCell.parentElement.textContent.match(/(?:手續費|手续费)[:：]\s*([\d.]+%?)/) || [])[1] || '',
@@ -591,6 +622,204 @@
             console.warn('[' + site.name + '] 发现疑似购买按钮 (' + found.length + '个)');
             showPurchaseButtonWarning(site.name, medalUrlOf(site), found);
         }
+    }
+
+    // ===== 卡片式布局（扩展「通用优先，特殊兜底」思路的 DOM 版） =====
+    // 覆盖 medal-card（cspt/luckpt/13city/playlet）、mcard（好学）、nova-medal-card、
+    // medal-item（麒麟等）、stat-item 等各站自定义卡片；这些站点没有 medal.php 式表格，
+    // 老脚本只会退化成「疑似购买按钮」提示，真实数据里光好学一家就漏 62 枚
+    const CARD_CONTAINER_RE = /(^|\s)(medal-card|mcard|nova-medal-card|medal-item|cread-card)(?![-\w])/;
+
+    // 与扩展 findBuyButtonTag 的结论一致，但只认真正的控件：
+    // 用 [class*="buy"] 会命中 nova-medal-buy-action 这类 DIV 容器，
+    // 结果 20 张卡全被判成可购买（扩展同页只有 2 张）。「赠送」「佩戴」
+    // 「已过可购买时间」都不是可购买，所以文本必须恰为 购买/購買
+    function findCardBuyButton(card) {
+        return [...card.querySelectorAll('button,input[type="submit"],input[type="button"]')].find(el => {
+            const label = (el.value || el.textContent || '').trim();
+            return (label === '购买' || label === '購買') && !el.disabled;
+        }) || null;
+    }
+
+    // 标签 → 字段：与扩展 assignCardField 一致，后出现的「购买价(过期+50%)」覆盖列表价
+    function assignCardField(fields, rawLabel, rawValue) {
+        const label = String(rawLabel || '').replace(/\s+/g, '').replace(/[：:]/g, '');
+        const value = String(rawValue || '').replace(/\s+/g, ' ').trim();
+        if (!label || !value) return;
+        if (/价格|價格|定价|售價|售价|购买价|購買價/.test(label)) fields.price = value;
+        else if (/有效期|時長|时长/.test(label)) fields.duration = value;
+        else if (/加成/.test(label)) fields.bonus = value;
+        else if (/库存|庫存/.test(label)) fields.stock = value;
+        else if (/可购买|可購買|销售时间|售賣|售卖/.test(label)) fields.timeRange = value;
+    }
+
+    function collectCardFields(card) {
+        const fields = { price: '', duration: '', bonus: '', stock: '', timeRange: '' };
+        // <li><span>标签</span><b>值</b></li>（好学 spec 列表）
+        card.querySelectorAll('li').forEach(li => {
+            const label = li.querySelector('span');
+            const value = li.querySelector('b');
+            if (label && value) assignCardField(fields, label.textContent, value.textContent);
+        });
+        // <dt>标签</dt><dd>值</dd>（nova 等）
+        card.querySelectorAll('dt').forEach(dt => {
+            const dd = dt.nextElementSibling;
+            if (dd && /^DD$/i.test(dd.tagName)) assignCardField(fields, dt.textContent, dd.textContent);
+        });
+        // 任意 *label / *value 兄弟对（detail-label、meta-label、stat-label、medal-card__label）
+        card.querySelectorAll('[class*="label"]').forEach(label => {
+            const value = label.nextElementSibling;
+            if (value && /value/.test(String(value.className))) assignCardField(fields, label.textContent, value.textContent);
+        });
+        // <div class="medal-detail-item"><span>标签:</span><strong>值</strong></div>（麒麟、老版好学）
+        card.querySelectorAll('.medal-detail-item').forEach(item => {
+            const span = item.querySelector('span');
+            const strong = item.querySelector('strong');
+            if (span && strong) assignCardField(fields, span.textContent, strong.textContent);
+        });
+        // <div class="stat-item">价格: <span class="stat-value">88,888</span></div>
+        // —— 标签是元素自身文本，值在子节点里，不是兄弟节点（cspt 财神）
+        card.querySelectorAll('[class*="stat-item"],[class*="detail-item"]').forEach(item => {
+            const value = item.querySelector('[class*="value"]');
+            if (!value) return;
+            assignCardField(fields, item.textContent.replace(value.textContent, ''), value.textContent);
+        });
+        // 嵌套明细表 <table class="medal-details"><tr><td>加成</td><td>0%</td></tr>（麒麟）
+        card.querySelectorAll('table tr').forEach(tr => {
+            if (tr.cells.length !== 2) return;
+            assignCardField(fields, tr.cells[0].textContent, tr.cells[1].textContent);
+        });
+        // 独立销售时间容器 <div class="sale-time">📅 不限 ~ 不限</div>（cspt）
+        if (!fields.timeRange) {
+            const sale = card.querySelector('[class*="sale-time"],[class*="medal-sale"]');
+            // 只去掉「销售时间：」「📅」这类前缀标签，保留日期里的 - : 空格分隔
+            if (sale) fields.timeRange = sale.textContent.replace(/[\s]*?(?:销售时间|銷售時間|售卖时间|發售|发售)[：:]?\s*/i, '').replace(/[^\x21-\x7e\u4e00-\u9fff~～]/g, ' ').replace(/\s+/g, ' ').trim();
+        }
+        // 行内「加成：5%」兜底（luckpt 头部的幸运星加成）
+        if (!fields.bonus) {
+            const inline = (card.textContent || '').match(/加成[：:]\s*([+\-]?[\d.]+%)/);
+            if (inline) fields.bonus = inline[1];
+        }
+        return fields;
+    }
+
+    function extractMedalsFromCards(doc, site) {
+        const medals = [];
+        const seen = new Set();
+        const all = [...doc.querySelectorAll('[class]')].filter(el => {
+            if (!CARD_CONTAINER_RE.test(String(el.className))) return false;
+            // 排除 medal-card-list / mcard-bd 之类派生容器：只保留最外层卡片
+            return !/-list|-grid|-bd|-top|-ft|-sum|-meta/.test(String(el.className).replace(CARD_CONTAINER_RE, ''));
+        });
+        for (const card of all) {
+            if ([...seen].some(s => s.contains(card))) continue;
+            const buy = findCardBuyButton(card);
+            if (!buy) continue;
+            const title = card.querySelector('h1,h2,h3,h4,.medal-name,[class*="title"],[class*="name"]');
+            const name = title ? title.textContent.replace(/\s+/g, ' ').trim() : '';
+            // 上限放宽到 120：套装名可以很长（cspt「女财神套装-姻缘与家族财富之神-和合二仙」）
+            if (!name || name.length > 120) continue;
+            const f = collectCardFields(card);
+            if (!f.price && !f.bonus) continue;   // 认不出的容器不硬凑，交给按钮探测提示
+            seen.add(card);
+            const img = card.querySelector('img');
+            medals.push({
+                site: site.name,
+                image: img && img.getAttribute('src') ? new URL(img.getAttribute('src'), medalUrlOf(site)).href : '',
+                name: name,
+                description: '',
+                availableTime: f.timeRange,
+                validity: f.duration,
+                bonusMultiplier: f.bonus,
+                price: parsePrice(f.price),
+                priceRaw: f.price,
+                stock: f.stock,
+                canBuy: true,
+                giftFee: ((buy.getAttribute('title') || '').match(/([\d.]+%)/) || [])[1] || '',
+            });
+        }
+        return medals;
+    }
+
+    // 价格解析：与扩展的 parsePriceNumber 同口径（剥掉除数字和小数点外的一切），
+    // 好学的勋章价格写成「188,888 魔力」，用严格数字校验会判成解析失败，
+    // 于是该站 62 枚勋章全部没有回本结论；但完全没有数字时仍必须返回 null，
+    // 返回 0 会让回本结论假报「✓ 24h 内回本」
+    function parsePrice(text) {
+        if (text === undefined || text === null || text === '') return null;
+        const raw = String(text);
+        if (/免费|不消耗|无需|非卖品/.test(raw)) return 0;
+        const digits = raw.replace(/[^\d.]/g, '');
+        if (!digits || !/^\d+(?:\.\d+)?$/.test(digits)) return null;
+        const num = parseFloat(digits);
+        return Number.isFinite(num) ? num : null;
+    }
+
+    // ===== 海棠 buycenter.php =====
+    // 列序与扩展 extractMedalsFromBuyCenter 一致（图标|简介|库存|单日限购|价格|交换）。
+    // 不靠表头匹配：整页有多张嵌套 table，按表头找会先撞上外层壳表；
+    // 名称在「简介」列里（h1 或「名称 （魔力值加成：1%）」），加成从名称文本里取
+    function extractMedalsFromBuyCenter(doc, site) {
+        const medals = [];
+        for (const row of doc.querySelectorAll('tr')) {
+            const cells = [...row.cells];
+            if (cells.length < 6) continue;
+
+            const actionCell = cells[5];
+            const submit = [...actionCell.querySelectorAll('input,button')]
+                .find(el => /交换|交換/.test((el.value || el.textContent || '').trim()));
+            if (!submit || submit.disabled) continue;
+
+            const nameCell = cells[1];
+            const full = nameCell ? nameCell.textContent.replace(/\s+/g, ' ').trim() : '';
+            const h1 = nameCell ? nameCell.querySelector('h1') : null;
+            // 与扩展同口径：站点用「名称 ⠀描述」的 U+2800 空白标记分隔，取标记前部分；
+            // 没有标记时再退回去括号与截断，避免把描述和隐藏表单文本一起当名称
+            const marker = full.indexOf('\u2800');
+            const rawName = h1 ? h1.textContent.trim() : (marker > 0 ? full.slice(0, marker).trim() : full);
+            // 「（可购买时间: … ~ …）」与隐藏登录表单残留「请输入用户名」都不是名称；
+            // 括号长度不设上限——早前限 40 字时，长一点的括号就漏掉了
+            const name = rawName
+                .replace(/\s*(?:[（(][^（）]*?(?:可购买时间|可購買時間|有效|过期|過期)[^（）]*?[）)]|请输入用户名.*|n\(.*$)/g, '')
+                .trim();
+            if (name.length < 2 || name === '简介') continue;
+
+            medals.push({
+                site: site.name,
+                image: '',
+                name: name,
+                description: full,
+                availableTime: '',
+                validity: (full.match(/(\d+)\s*天|永久/) || [])[0] || '',
+                // 只有明确写成「加成：x%」时才填，取不到就留空——
+                // 早前用 b/i/span 兜底会把勋章名称本身当成加成值
+                bonusMultiplier: (full.match(/加成[：:]\s*([+\-]?[\d.]+%)/) || [])[1] || '',
+                price: parsePrice(cells[4] ? cells[4].textContent : ''),
+                priceRaw: cells[4] ? cells[4].textContent.trim() : '',
+                stock: cells[2] ? cells[2].textContent.trim() : '',
+                canBuy: true,
+                giftFee: '',
+            });
+        }
+        return medals;
+    }
+
+    // ===== 余额 =====
+    // 与扩展同口径但补齐被改名的币种：猫粮(PT站称「猫粮」)、贝利(sunnypt)、杏仁/爆米花/
+    // 蝌蚪/茉莉/憨豆/幸运星/电力/积分——实测标准关键字只覆盖 44/80 站，改名站再多 9 站
+    const BALANCE_RE_KM = /(魔力值|魔力|魔法|麦力|麦粒|magic|猫粮|貝利|贝利|杏仁值|杏仁|爆米花|蝌蚪|茉莉|憨豆|幸运星|电力|電力|积分|積分|余额|餘額)[^0-9]{0,12}([\d,]+(?:\.\d+)?)(K|M|B)?/i;
+
+    function extractBalance(doc) {
+        const text = (doc.body ? doc.body.textContent : '').replace(/\s+/g, ' ');
+        // 茉莉/杏仁等站点表头写成「954.1K」，丢掉 K 会把 95 万读成 954，
+        // 于是所有勋章都被标成买不起
+        const m = text.match(BALANCE_RE_KM);
+        if (!m) return null;
+        const num = parseNumber(m[2]);
+        if (num === null || num <= 0) return null;
+        const unit = (m[3] || '').toUpperCase();
+        const scaled = unit === 'K' ? num * 1000 : unit === 'M' ? num * 1e6 : unit === 'B' ? num * 1e9 : num;
+        return Math.round(scaled);
     }
 
     // ===== 展示 =====
@@ -681,6 +910,12 @@
         const siteHeader = document.createElement('h2');
         siteHeader.textContent = site.name + ' (一共 ' + medals.length + ' 个勋章，'
             + (site.pageCount || 1) + ' 页) ';
+        if (typeof site.balance === 'number') {
+            const money = document.createElement('span');
+            money.style.cssText = 'font-size:.72em;color:#e65100;margin-left:10px;font-weight:normal;';
+            money.textContent = '💰余额 ' + site.balance.toLocaleString();
+            siteHeader.appendChild(money);
+        }
         const badge = hourlyBadge(site.hourly);
         if (badge) siteHeader.appendChild(badge);
 
@@ -698,7 +933,7 @@
         const table = document.createElement('table');
         table.style.cssText = 'width:100%;border-collapse:collapse;margin-bottom:20px;';
 
-        const headers = ['图片', '跳转', '名称', '描述', '可购买时间', '有效期', '加成', '价格', '库存', '手续费', '回本'];
+        const headers = ['图片', '跳转', '名称', '描述', '可购买时间', '有效期', '加成', '价格', '库存', '手续费', '回本', '买得起'];
         const headerRow = document.createElement('tr');
         headers.forEach(text => {
             const th = document.createElement('th');
@@ -719,6 +954,8 @@
             }
             // 24 小时内可回本的再深一档，扫列表时一眼挑得出来
             if (medal.payback && medal.payback.canPayback) row.style.backgroundColor = '#c8f5c8';
+            // 买不起的行单独标色：这类勋章点「购买」只会得到「需要更多魔力值」
+            if (medal.affordable === false) row.style.backgroundColor = '#ffecec';
 
             const startText = (medal.availableTime || '').split('~')[0].trim();
             if (startText && startText !== '不限') {
@@ -746,8 +983,11 @@
 
             const values = [
                 medal.name, medal.description, medal.availableTime, medal.validity,
-                medal.bonusMultiplier, Number(medal.price).toLocaleString(), medal.stock,
+                medal.bonusMultiplier,
+                typeof medal.price === 'number' ? medal.price.toLocaleString() : (medal.priceRaw || ''),
+                medal.stock,
                 medal.giftFee, paybackText(medal.payback),
+                medal.affordable === true ? '是' : (medal.affordable === false ? '否' : ''),
             ];
             row.append(imgCell, jumpCell, ...values.map(text => {
                 const td = document.createElement('td');
